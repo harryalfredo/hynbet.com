@@ -168,6 +168,9 @@ export const q = {
     VALUES (@id,@project_id,@parent_id,@kind,@status,@progress,@current_step,@step_index,@total_steps,@message,@error_code,@error,@attempt,@cancel_requested,@pid,@created_at,@updated_at)`),
   getJob: db.prepare('SELECT * FROM jobs WHERE id = ?'),
   latestJob: db.prepare('SELECT * FROM jobs WHERE project_id = ? AND kind = ? ORDER BY created_at DESC LIMIT 1'),
+  findActiveByUserSource: db.prepare(`SELECT j.*, p.source_url FROM jobs j JOIN projects p ON p.id = j.project_id
+    WHERE p.user_id = ? AND p.source_url = ? AND j.status IN ('QUEUED','FETCHING_SOURCE','DOWNLOADING','PROBING_VIDEO')
+    ORDER BY j.created_at DESC LIMIT 1`),
   activeJobs: db.prepare("SELECT COUNT(*) AS n FROM jobs WHERE project_id IN (SELECT id FROM projects WHERE user_id = ?) AND status NOT IN ('COMPLETED','FAILED','CANCELLED')"),
   updateJob: db.prepare(`UPDATE jobs SET status=@status, progress=@progress, current_step=@current_step, step_index=@step_index, message=@message, error_code=@error_code, error=@error, attempt=@attempt, cancel_requested=@cancel_requested, pid=@pid, updated_at=@updated_at WHERE id=@id`),
   insertEvent: db.prepare('INSERT INTO events (job_id, status, progress, message, created_at) VALUES (?, ?, ?, ?, ?)'),
@@ -207,6 +210,11 @@ export const q = {
   deleteKickConnection: db.prepare('DELETE FROM kick_connections WHERE user_id = ?'),
 }
 
+let jobTouchHook = null
+export function setJobTouchHook(fn) {
+  jobTouchHook = fn
+}
+
 export function touchJob(job, patch) {
   const next = {
     id: job.id,
@@ -224,7 +232,11 @@ export function touchJob(job, patch) {
   }
   q.updateJob.run(next)
   q.insertEvent.run(job.id, next.status, next.progress, next.message, now())
-  return { ...job, ...next }
+  const merged = { ...job, ...next }
+  if (jobTouchHook) {
+    Promise.resolve(jobTouchHook(merged)).catch(() => {})
+  }
+  return merged
 }
 
 export function isCancelled(jobId) {

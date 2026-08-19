@@ -3,7 +3,7 @@ import { config } from './config.js'
 import { db } from './db.js'
 import { publicKickStatus } from './env.js'
 import { canRunMediaBin } from './lib/mediaBins.js'
-import { pingRedis } from './queue.js'
+import { pingRedis, redisConfigured, workerHeartbeatFresh } from './queue.js'
 import { storage } from './services/storage/index.js'
 import { transcriptionHealth } from './services/transcribe/index.js'
 
@@ -22,12 +22,17 @@ export async function healthPayload() {
     ffmpegVersion = String(r.stdout || '').split('\n')[0] || null
   }
   const redis = await pingRedis()
+  const workerAlive = await workerHeartbeatFresh()
   const storageStatus = await storage.ping()
   const ai = await transcriptionHealth()
   const kick = publicKickStatus()
   return {
     database,
     redis,
+    redisConfigured: redisConfigured(),
+    redisConnected: redis === 'ok',
+    worker: workerAlive ? 'ok' : redis === 'ok' ? 'offline' : redis === 'unset' ? 'unset' : 'error',
+    queue: redis === 'ok' ? 'connected' : redis,
     storage: storageStatus,
     ffmpeg,
     ffmpegPath: ffmpegOk ? config.ffmpeg : null,

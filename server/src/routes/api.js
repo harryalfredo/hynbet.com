@@ -7,7 +7,7 @@ import { createSession, ensureDevUser, ownProject, requireUser, sessionCookie } 
 import { kickAuth } from './kickAuth.js'
 import { db, now, q, touchJob, uid } from '../db.js'
 import { healthPayload } from '../health.js'
-import { cancelQueueJob, enqueueProject, enqueueRegen } from '../queue.js'
+import { cancelQueueJob, enqueueProject, enqueueRegen, redisRateLimit } from '../queue.js'
 import { sources } from '../services/source/index.js'
 import { storage } from '../services/storage/index.js'
 import { killJobProcesses } from '../proc.js'
@@ -36,41 +36,48 @@ api.get('/config', requireUser, async (_req, res) => {
   res.json(await healthPayload())
 })
 
-api.post('/projects', requireUser, (req, res) => {
-  const sourceUrl = String(req.body?.sourceUrl || '').trim()
+async function createQueuedProject(user, { sourceUrl, clipCount, clipLength, styleId, sourceKind, title, metadata }) {
+  const rl = await redisRateLimit(`jobs:${user.id}`, config.jobCreateLimit, 60)
+  if (!rl.ok) {
+    const err = new Error('Too many processing requests. Try again shortly.')
+    err.code = 'RATE_LIMIT'
+    err.status = 429
+    throw err
+  }
+  const active = q.activeJobs.get(user.id).n
+  if (active >= config.maxJobsPerUser) {
+    const err = new Error(`Maximum concurrent jobs is ${config.maxJobsPerUser}.`)
+    err.code = 'RATE_LIMIT'
+    err.status = 429
+    throw err
+  }
+  const dup = q.findActiveByUserSource.get(user.id, sourceUrl)
+  if (dup) return { projectId: dup.project_id, jobId: dup.id, status: dup.status, deduped: true }
+
   const parsed = sources.parse(sourceUrl)
   if (!parsed || parsed.invalid) {
-    res.status(400).json({
-      error: 'INVALID_URL',
-      message: "We couldn't recognize this Kick URL or media source. Check the link and try again.",
-    })
-    return
-  }
-  const active = q.activeJobs.get(req.user.id).n
-  if (active >= config.maxJobsPerUser) {
-    res.status(429).json({
-      error: 'RATE_LIMIT',
-      message: `Maximum concurrent jobs is ${config.maxJobsPerUser}.`,
-    })
-    return
+    const err = new Error("We couldn't recognize this Kick URL or media source. Check the link and try again.")
+    err.code = 'INVALID_URL'
+    err.status = 400
+    throw err
   }
   const projectId = uid('prj')
   const jobId = uid('job')
   const ts = now()
   q.insertProject.run({
     id: projectId,
-    user_id: req.user.id,
+    user_id: user.id,
     source_url: sourceUrl,
-    source_kind: parsed.kind || parsed.provider,
+    source_kind: sourceKind || parsed.kind || parsed.provider,
     streamer: parsed.handle || null,
-    title: null,
+    title: title || null,
     thumbnail_key: null,
     duration: null,
     status: 'QUEUED',
-    clip_count: Math.min(config.maxClips, Math.max(1, Number(req.body?.clipCount) || 3)),
-    clip_length: req.body?.clipLength || 'auto',
-    style_id: req.body?.styleId || 'viral',
-    metadata_json: JSON.stringify({ parsed }),
+    clip_count: Math.min(config.maxClips, Math.max(1, Number(clipCount) || 3)),
+    clip_length: clipLength || 'auto',
+    style_id: styleId || 'viral',
+    metadata_json: JSON.stringify(metadata || { parsed }),
     created_at: ts,
     updated_at: ts,
   })
@@ -93,7 +100,7 @@ api.post('/projects', requireUser, (req, res) => {
     created_at: ts,
     updated_at: ts,
   })
-  enqueueProject(jobId).catch((e) => {
+  enqueueProject(jobId, { userId: user.id, projectId }).catch((e) => {
     touchJob(q.getJob.get(jobId), {
       status: 'FAILED',
       error: e.message,
@@ -101,7 +108,35 @@ api.post('/projects', requireUser, (req, res) => {
       message: e.message,
     })
   })
-  res.status(202).json({ projectId, jobId, status: 'QUEUED' })
+  return { projectId, jobId, status: 'QUEUED' }
+}
+
+api.post('/projects', requireUser, async (req, res) => {
+  try {
+    const result = await createQueuedProject(req.user, {
+      sourceUrl: String(req.body?.sourceUrl || '').trim(),
+      clipCount: req.body?.clipCount,
+      clipLength: req.body?.clipLength,
+      styleId: req.body?.styleId,
+    })
+    res.status(202).json(result)
+  } catch (e) {
+    res.status(e.status || 500).json({ error: e.code || 'FAILED', message: e.message })
+  }
+})
+
+api.post('/jobs', requireUser, async (req, res) => {
+  try {
+    const result = await createQueuedProject(req.user, {
+      sourceUrl: String(req.body?.sourceUrl || req.body?.source || '').trim(),
+      clipCount: req.body?.clipCount,
+      clipLength: req.body?.clipLength,
+      styleId: req.body?.styleId,
+    })
+    res.status(202).json(result)
+  } catch (e) {
+    res.status(e.status || 500).json({ error: e.code || 'FAILED', message: e.message })
+  }
 })
 
 api.post('/projects/upload', requireUser, upload.single('file'), async (req, res) => {
@@ -152,7 +187,7 @@ api.post('/projects/upload', requireUser, upload.single('file'), async (req, res
     created_at: ts,
     updated_at: ts,
   })
-  await enqueueProject(jobId)
+  await enqueueProject(jobId, { userId: req.user.id, projectId })
   res.status(202).json({ projectId, jobId, status: 'QUEUED' })
 })
 

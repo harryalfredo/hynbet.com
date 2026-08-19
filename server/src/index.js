@@ -76,10 +76,24 @@ async function attach() {
     logger.warn('ensureDevUser failed', { error: e.message })
   }
   try {
-    startWorker()
+    if (queue.shouldRunInlineWorker()) queue.startWorker()
+    else logger.info('inline worker disabled — start node server/src/worker.js as a separate service')
   } catch (e) {
     logger.warn('worker not started', { error: e.message })
   }
+
+  const shutdown = async (signal) => {
+    logger.info('web shutting down', { signal })
+    try {
+      await queue.stopWorkers()
+    } catch {
+      /* ignore */
+    }
+    server.close(() => process.exit(0))
+    setTimeout(() => process.exit(0), 8000)
+  }
+  process.on('SIGTERM', () => shutdown('SIGTERM'))
+  process.on('SIGINT', () => shutdown('SIGINT'))
 }
 
 server.on('error', (err) => {

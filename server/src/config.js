@@ -29,6 +29,8 @@ export const config = {
   maxClips: num('MAX_CLIPS_PER_PROJECT', 10),
   maxJobsPerUser: num('MAX_CONCURRENT_JOBS_PER_USER', 2),
   maxRetries: num('JOB_MAX_RETRIES', 3),
+  jobRetentionSec: num('JOB_RETENTION_SEC', 86400),
+  jobCreateLimit: num('JOB_CREATE_LIMIT_PER_MIN', 8),
   dataDir: process.env.DATA_DIR || '/home/user/data',
   storageDir: process.env.STORAGE_DIR || '/home/user/data/storage',
   tmpDir: process.env.TMP_DIR || '/home/user/data/tmp',
