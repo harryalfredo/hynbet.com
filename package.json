@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0 --port 5173",
     "server": "node server/src/index.js",
-    "start": "node server/src/index.js",
+    "start": "sh start.sh",
     "worker": "node server/src/worker.js",
     "dev-sample": "node server/scripts/make-dev-sample.js",
     "build": "vite build",

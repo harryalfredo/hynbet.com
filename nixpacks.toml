@@ -8,4 +8,4 @@ cmds = ["npm ci || npm install"]
 cmds = ["npm run build"]
 
 [start]
-cmd = "node server/src/index.js"
+cmd = "sh start.sh"

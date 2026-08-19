@@ -1,7 +1,7 @@
 import path from 'node:path'
 import express from 'express'
 
-const port = Number.parseInt(process.env.PORT, 10) || 8787
+const port = Number.parseInt(process.env.HYNBET_BIND_PORT || process.env.PORT, 10) || 8787
 const host = '0.0.0.0'
 
 const app = express()

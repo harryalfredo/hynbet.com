@@ -1,0 +1,9 @@
+{
+	auto_https off
+	admin off
+}
+
+:{$PORT:8080} {
+	encode gzip
+	reverse_proxy 127.0.0.1:8787
+}
