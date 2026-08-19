@@ -1,0 +1,20 @@
+{
+  "name": "hynbet-clip-studio-api",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "worker": "node src/worker.js",
+    "dev-sample": "node scripts/make-dev-sample.js"
+  },
+  "dependencies": {
+    "@xenova/transformers": "^2.17.2",
+    "better-sqlite3": "^12.11.1",
+    "bullmq": "^6.1.2",
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
+    "ioredis": "^6.0.0",
+    "multer": "^2.2.0"
+  }
+}
