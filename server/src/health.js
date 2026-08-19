@@ -2,6 +2,7 @@ import { spawnSync } from 'node:child_process'
 import { config } from './config.js'
 import { db } from './db.js'
 import { publicKickStatus } from './env.js'
+import { canRunMediaBin } from './lib/mediaBins.js'
 import { pingRedis } from './queue.js'
 import { storage } from './services/storage/index.js'
 import { transcriptionHealth } from './services/transcribe/index.js'
@@ -13,12 +14,12 @@ export async function healthPayload() {
   } catch {
     database = 'error'
   }
-  let ffmpeg = 'ok'
-  try {
+  const ffmpegOk = canRunMediaBin(config.ffmpeg)
+  const ffmpeg = ffmpegOk ? 'ok' : 'error'
+  let ffmpegVersion = null
+  if (ffmpegOk) {
     const r = spawnSync(config.ffmpeg, ['-version'], { encoding: 'utf8' })
-    if (r.status !== 0) ffmpeg = 'error'
-  } catch {
-    ffmpeg = 'error'
+    ffmpegVersion = String(r.stdout || '').split('\n')[0] || null
   }
   const redis = await pingRedis()
   const storageStatus = await storage.ping()
@@ -29,6 +30,8 @@ export async function healthPayload() {
     redis,
     storage: storageStatus,
     ffmpeg,
+    ffmpegPath: ffmpegOk ? config.ffmpeg : null,
+    ffmpegVersion,
     ai,
     kick:
       kick.kickClientIdConfigured && kick.kickClientSecretConfigured && kick.kickRedirectUriConfigured

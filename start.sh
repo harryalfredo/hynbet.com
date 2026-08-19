@@ -4,6 +4,19 @@ cd "$(dirname "$0")"
 
 PUBLIC_PORT="${PORT:-8080}"
 
+if command -v ffmpeg >/dev/null 2>&1; then
+  case "${FFMPEG_PATH:-}" in
+    [A-Za-z]:\\*|[A-Za-z]:/*|*\\*) ;;
+    *) export FFMPEG_PATH="${FFMPEG_PATH:-$(command -v ffmpeg)}" ;;
+  esac
+fi
+if command -v ffprobe >/dev/null 2>&1; then
+  case "${FFPROBE_PATH:-}" in
+    [A-Za-z]:\\*|[A-Za-z]:/*|*\\*) ;;
+    *) export FFPROBE_PATH="${FFPROBE_PATH:-$(command -v ffprobe)}" ;;
+  esac
+fi
+
 # Railway static/Nixpacks images include Caddy and bind it to $PORT.
 # Start HYNBET Node internally, then let Caddy own the public port.
 if command -v caddy >/dev/null 2>&1; then

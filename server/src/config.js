@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { envString, loadServerEnv } from './env.js'
+import { resolveMediaBin } from './lib/mediaBins.js'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 loadServerEnv()
@@ -21,8 +22,8 @@ export const config = {
   databaseUrl: process.env.DATABASE_URL || `sqlite:///${path.join(root, 'data', 'hynbet.db')}`,
   redisUrl: process.env.REDIS_URL || '',
   workerConcurrency: Math.max(1, num('WORKER_CONCURRENCY', 1)),
-  ffmpeg: process.env.FFMPEG_PATH || 'ffmpeg',
-  ffprobe: process.env.FFPROBE_PATH || 'ffprobe',
+  ffmpeg: resolveMediaBin('ffmpeg', 'FFMPEG_PATH'),
+  ffprobe: resolveMediaBin('ffprobe', 'FFPROBE_PATH'),
   maxVideoDuration: num('MAX_VIDEO_DURATION', 14400),
   maxUploadSize: num('MAX_UPLOAD_SIZE', 2147483648),
   maxClips: num('MAX_CLIPS_PER_PROJECT', 10),
