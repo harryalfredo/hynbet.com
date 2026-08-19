@@ -1,0 +1,13 @@
+node_modules
+server/node_modules
+dist
+.git
+.npm
+.cache
+data/tmp
+data/storage
+data/models
+data/*.db
+.env
+.env.*
+*.log
