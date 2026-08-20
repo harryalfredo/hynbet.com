@@ -19,6 +19,8 @@ RUN apt-get update \
 
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0
+ENV FFMPEG_PATH=/usr/bin/ffmpeg
+ENV FFPROBE_PATH=/usr/bin/ffprobe
 
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev

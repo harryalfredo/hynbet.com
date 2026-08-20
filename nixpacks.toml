@@ -1,9 +1,0 @@
-[phases.setup]
-nixPkgs = ["...", "ffmpeg"]
-aptPkgs = ["...", "ffmpeg"]
-
-[phases.build]
-cmds = ["...", "which ffmpeg", "ffmpeg -version"]
-
-[start]
-cmd = "node server/src/index.js"
